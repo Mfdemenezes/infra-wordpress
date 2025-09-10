@@ -157,11 +157,11 @@ resource "aws_lb_target_group" "wordpress" {
   health_check {
     enabled             = true
     healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 10
-    interval            = 30
+    unhealthy_threshold = 5
+    timeout             = 15
+    interval            = 60
     path                = "/"
-    matcher             = "200,302"
+    matcher             = "200,302,404"
     port                = "8000"
     protocol            = "HTTP"
   }
