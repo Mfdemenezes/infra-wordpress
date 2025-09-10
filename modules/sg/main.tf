@@ -22,13 +22,13 @@ resource "aws_security_group" "sg" {
     description = "HTTPS from VPC (temp - will be restricted to ALB)"
   }
 
-  # N8N direct port (apenas para debug via SSM)
+  # WordPress port (8000) - acessível da VPC
   ingress {
-    from_port   = 5678
-    to_port     = 5678
+    from_port   = 8000
+    to_port     = 8000
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
-    description = "N8N direct port from VPC only"
+    description = "WordPress port from VPC"
   }
 
   # SSH apenas da VPC (para SSM)

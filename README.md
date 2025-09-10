@@ -1,176 +1,236 @@
-# Projeto Terraform - Infraestrutura AWS
+# 🚀 Infraestrutura WordPress na AWS
 
-Este projeto contém configurações Terraform para provisionar uma infraestrutura completa na AWS, incluindo instâncias EC2, buckets S3, redes e grupos de segurança.
-
-**✅ Backend remoto S3 configurado para gerenciamento de state**
-
-## 📋 Descrição
-
-O projeto utiliza uma arquitetura modular do Terraform para criar uma infraestrutura escalável e reutilizável na AWS. A infraestrutura inclui:
-
-- **EC2**: Instâncias configuráveis com suporte ao SSM Session Manager
-- **VPC/Networking**: VPC personalizada com subnets públicas
-- **Security Groups**: Grupos de segurança configuráveis
-- **S3**: Buckets com configurações de segurança e criptografia
-- **EBS**: Volumes criptografados anexados às instâncias
+Projeto Terraform para deploy automatizado do WordPress com arquitetura segura na AWS.
 
 ## 🏗️ Arquitetura
 
 ```
-├── main.tf              # Configuração principal e módulos
-├── variables.tf         # Variáveis de entrada
-├── outputs.tf          # Outputs dos recursos criados
-├── terraform.tfvars    # Valores específicos das variáveis
-└── modules/
-    ├── ec2/           # Módulo para instâncias EC2
-    ├── network/       # Módulo para VPC e networking
-    ├── s3/           # Módulo para buckets S3
-    └── sg/           # Módulo para security groups
+Internet → ALB → EC2 (subnet privada)
 ```
+
+### Componentes:
+- **EC2**: Instância em subnet privada executando WordPress + MySQL + Traefik via Docker
+- **ALB**: Application Load Balancer em subnets públicas  
+- **VPC**: Rede privada com subnets públicas e privadas
+- **Security Groups**: Regras de firewall restritivas
+- **Docker Stack**: WordPress + MySQL + Traefik com volumes persistentes
+
+## 🌐 URLs de Acesso
+
+Após o deploy, acesse:
+- **URL Principal**: `http://[ALB-DNS-NAME]`
+- **WordPress Admin**: `http://[ALB-DNS-NAME]/wp-admin`
+- **Instalação Inicial**: `http://[ALB-DNS-NAME]/wp-admin/install.php`
 
 ## 🚀 Como usar
 
-### Pré-requisitos
-
-1. **Terraform** instalado (versão 1.0+)
-2. **AWS CLI** configurado com credenciais válidas
-3. Permissões adequadas na AWS para criar os recursos
-
-### Configuração
-
-1. Clone o repositório:
+### 1. Configurar AWS Credentials
 ```bash
-git clone <repository-url>
-cd terraform
+# Via AWS CLI
+aws configure
+
+# Ou via variáveis de ambiente
+export AWS_ACCESS_KEY_ID="sua-access-key"
+export AWS_SECRET_ACCESS_KEY="sua-secret-key"
 ```
 
-2. Configure suas variáveis no arquivo `terraform.tfvars`:
+### 2. Configurar Backend S3
+Edite `backend.tf` com seu bucket:
 ```hcl
-# Exemplo de configuração
-region = "us-east-1"
-environment = "development"
-ec2_name = "meu-projeto"
-ec2_instance_type = "t2.micro"
-vpc_cidr = "10.0.0.0/16"
+terraform {
+  backend "s3" {
+    bucket = "wordpress-terraform-state-[SEU-NOME]"
+    key    = "infra-wordpress/terraform.tfstate"
+    region = "us-east-1"
+    encrypt = true
+  }
+}
 ```
 
-### Deploy
-
-1. Inicialize o Terraform:
+### 3. Deploy Local
 ```bash
 terraform init
-```
-
-2. Revise o plano de execução:
-```bash
 terraform plan
-```
-
-3. Aplique as configurações:
-```bash
 terraform apply
 ```
 
-### Destruição
+### 4. Deploy via GitHub Actions
 
-Para remover todos os recursos:
+#### Configurar Secrets:
+1. Vá para **Settings** → **Secrets and variables** → **Actions**
+2. Adicione:
+   - `AWS_ACCESS_KEY_ID`: Sua AWS Access Key
+   - `AWS_SECRET_ACCESS_KEY`: Sua AWS Secret Key
+
+#### Deploy Automático:
 ```bash
-terraform destroy
+git add .
+git commit -m "Deploy WordPress"
+git push origin main  # Trigger automático
 ```
 
-## 📝 Variáveis Principais
+#### Deploy Manual:
+1. Acesse **Actions** → **🚀 WordPress Terraform CI/CD Pipeline**
+2. Clique **Run workflow** → Selecione **apply**
 
-| Variável | Descrição | Tipo | Padrão |
-|----------|-----------|------|--------|
-| `region` | Região AWS | string | us-east-1 |
-| `environment` | Ambiente (dev/prod/staging) | string | development |
-| `ec2_instance_type` | Tipo da instância EC2 | string | t2.micro |
-| `ec2_count` | Número de instâncias | number | 1 |
-| `vpc_cidr` | CIDR da VPC | string | 10.0.0.0/16 |
-| `enable_ssm` | Habilitar SSM Session Manager | bool | true |
-| `s3_enable_encryption` | Criptografia do S3 | bool | true |
+## 📦 Stack WordPress
 
-## 📊 Outputs
+### Docker Compose:
+```yaml
+wordpress:
+  image: wordpress:latest
+  ports: ["8000:80"]
+  environment:
+    WORDPRESS_DB_HOST: mysql
+    WORDPRESS_DB_NAME: wordpress
+    WORDPRESS_DB_USER: wpuser
 
-O projeto retorna os seguintes outputs após o deploy:
+mysql:
+  image: mysql:8.0
+  environment:
+    MYSQL_DATABASE: wordpress
+    MYSQL_USER: wpuser
+    MYSQL_ROOT_PASSWORD: rootpassword
 
-- **EC2 Instance IDs**: IDs das instâncias criadas
-- **Public IPs**: IPs públicos das instâncias
-- **VPC ID**: ID da VPC criada
-- **S3 Bucket Name**: Nome do bucket S3 criado
-- **Security Group ID**: ID do grupo de segurança
-
-## 🔧 Customização
-
-### Security Groups
-
-As regras do security group podem ser customizadas através da variável `sg_ingress_rules`:
-
-```hcl
-sg_ingress_rules = [
-  {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTP"
-  }
-]
+traefik:
+  image: traefik:v3.0
+  ports: ["80:80", "8080:8080"]
 ```
 
-### User Data
-
-Você pode fornecer scripts personalizados via variável `custom_user_data`:
-
+### Principais Variáveis (terraform.tfvars):
 ```hcl
-custom_user_data = <<-EOF
-#!/bin/bash
-yum update -y
-yum install -y httpd
-systemctl start httpd
-systemctl enable httpd
-EOF
+ec2_name = "wordpress-server"
+region = "us-east-1" 
+vpc_cidr = "10.0.0.0/16"
+environment = "production"
+ec2_instance_type = "t3.medium"
+ec2_count = 1
 ```
 
 ## 🛡️ Segurança
 
-- **EBS**: Volumes criptografados por padrão
-- **S3**: Buckets com acesso público bloqueado
-- **SSM**: Session Manager habilitado para acesso seguro
-- **Security Groups**: Regras configuráveis por protocolo
+- ✅ EC2 em subnet privada (sem IP público)
+- ✅ ALB público com SSL pronto
+- ✅ Security Groups restritivos
+- ✅ Volumes EBS criptografados
+- ✅ IAM roles com mínimos privilégios
+- ✅ Acesso SSH via AWS Session Manager
 
-## 📋 Requisitos
+## 🚨 Troubleshooting
 
-- Terraform >= 1.0
-- AWS Provider >= 5.0
-- Credenciais AWS configuradas
-- Permissões IAM adequadas
+### WordPress não carrega (502 Error)
+```bash
+# 1. Aguarde 5-10 minutos (containers inicializando)
 
-## 🤝 Contribuição
+# 2. Acesse via SSM
+aws ssm start-session --target [INSTANCE-ID]
 
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
+# 3. Verifique containers
+sudo su - ec2-user
+cd wordpress-project
+docker compose ps
+docker compose logs wordpress
+docker compose logs mysql
 
-## 📄 Licença
+# 4. Reinicie se necessário
+./restart-wordpress.sh
+```
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para detalhes.
+### ALB Health Check Failed
+- **Causa**: MySQL demora para inicializar antes do WordPress
+- **Solução**: Aguardar 10-15 minutos ou verificar logs do MySQL
+
+### Erro de Permissões AWS
+- **IAM**: Verificar se usuário tem permissões EC2, VPC, ALB, IAM
+- **S3**: Verificar acesso ao bucket do backend
+
+## 📁 Estrutura do Projeto
+
+```
+├── main.tf                    # Configuração principal
+├── variables.tf               # Variáveis globais  
+├── terraform.tfvars          # Valores das variáveis
+├── outputs.tf                # Outputs da infraestrutura
+├── backend.tf                # Backend S3
+├── modules/
+│   ├── network/              # VPC, subnets, gateways
+│   ├── ec2/                  # EC2 + WordPress Docker
+│   │   ├── user_data.sh      # Script de inicialização
+│   │   ├── compose.yaml      # Docker Compose
+│   │   └── restart-wordpress.sh # Script de restart
+│   ├── alb/                  # Load Balancer
+│   ├── s3/                   # Buckets S3
+│   └── sg/                   # Security Groups
+└── .github/
+    └── workflows/            # CI/CD Pipelines
+        ├── deploy.yml        # Deploy
+        ├── destroy.yml       # Destroy
+        └── test.yml          # Tests
+```
+
+## � Workflows GitHub Actions
+
+### Deploy Pipeline
+- **Trigger**: Push para `main` ou manual
+- **Steps**: Validate → Plan → Apply
+- **Output**: URLs de acesso ao WordPress
+
+### Destroy Pipeline  
+- **Trigger**: Manual apenas
+- **Safety**: Requer digitar "DESTROY"
+- **Warning**: Remove toda infraestrutura
+
+### Test Pipeline
+- **Trigger**: Manual
+- **Function**: Validar sintaxe Terraform
+
+## 💾 Backup e Volumes
+
+### Volumes Persistentes:
+```bash
+wordpress_data:/var/www/html     # Arquivos WordPress
+mysql_data:/var/lib/mysql        # Banco de dados
+```
+
+### Backup Manual:
+```bash
+# Via SSM
+aws ssm start-session --target [INSTANCE-ID]
+
+# Backup WordPress
+sudo docker exec wordpress tar -czf /tmp/wp-backup.tar.gz /var/www/html
+
+# Backup MySQL  
+sudo docker exec mysql mysqldump -u wpuser -p wordpress > wp-backup.sql
+```
+
+## 📊 Outputs Importantes
+
+Após deploy bem-sucedido:
+- `alb_dns_name`: URL do Load Balancer
+- `wordpress_access_urls`: URLs completas de acesso
+- `instance_private_ips`: IPs privados das instâncias
+- `instance_ids`: IDs das instâncias para SSM
+
+## 🗑️ Destruir Infraestrutura
+
+### Via GitHub Actions:
+1. **Actions** → **🗑️ WordPress Terraform Destroy**
+2. Digite **DESTROY** na confirmação
+3. Selecione ambiente e execute
+
+### Via CLI Local:
+```bash
+terraform destroy
+```
+
+⚠️ **Atenção**: Todos os dados WordPress serão perdidos!
 
 ## 👨‍💻 Autor
 
 **Marcelo Menezes**
-
 - GitHub: [@Mfdemenezes](https://github.com/Mfdemenezes)
-- Email: seu.email@exemplo.com
-
-## 📚 Recursos Úteis
-
-- [Documentação do Terraform](https://developer.hashicorp.com/terraform/docs)
-- [AWS Provider Documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- [Terraform Best Practices](https://www.terraform-best-practices.com/)
 
 ---
 
-⭐ Se este projeto foi útil para você, considere dar uma estrela no repositório!
+� **Happy WordPressing!** 🚀

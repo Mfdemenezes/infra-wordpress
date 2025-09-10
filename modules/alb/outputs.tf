@@ -15,7 +15,7 @@ output "alb_zone_id" {
 
 output "target_group_arn" {
   description = "ARN do Target Group"
-  value       = aws_lb_target_group.n8n.arn
+  value       = aws_lb_target_group.wordpress.arn
 }
 
 output "alb_security_group_id" {

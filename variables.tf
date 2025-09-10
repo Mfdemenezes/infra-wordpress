@@ -27,7 +27,7 @@ variable "ec2_count" {
 variable "ec2_name" {
   description = "Nome do projeto/instâncias EC2"
   type        = string
-  default     = "n8n-instancia"
+  default     = "wordpress-instancia"
 }
 
 variable "enable_ssm" {

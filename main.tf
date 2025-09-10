@@ -136,6 +136,17 @@ resource "aws_security_group" "alb" {
   }
 }
 
+# Regra adicional: ALB para EC2 na porta 8000 (WordPress)
+resource "aws_security_group_rule" "alb_to_ec2_wordpress" {
+  type                     = "ingress"
+  from_port                = 8000
+  to_port                  = 8000
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb.id
+  security_group_id        = module.security_group.security_group_id
+  description              = "ALB to EC2 WordPress port 8000"
+}
+
 # Target Group para WordPress
 resource "aws_lb_target_group" "wordpress" {
   name     = "${replace(var.ec2_name, "_", "-")}-wp-tg"

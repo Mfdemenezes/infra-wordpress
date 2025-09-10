@@ -52,10 +52,10 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# Target Group para N8N
-resource "aws_lb_target_group" "n8n" {
-  name     = "${var.project_name}-n8n-tg"
-  port     = 80
+# Target Group para WordPress
+resource "aws_lb_target_group" "wordpress" {
+  name     = replace("${var.project_name}-wordpress-tg", "_", "-")
+  port     = 8000
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
@@ -65,14 +65,14 @@ resource "aws_lb_target_group" "n8n" {
     unhealthy_threshold = 2
     timeout             = 10
     interval            = 30
-    path                = "/healthz"
-    matcher             = "200,404"
-    port                = "80"
+    path                = "/"
+    matcher             = "200,302"
+    port                = "8000"
     protocol            = "HTTP"
   }
 
   tags = {
-    Name = "${var.project_name}-n8n-tg"
+    Name = "${var.project_name}-wordpress-tg"
   }
 }
 
@@ -84,14 +84,14 @@ resource "aws_lb_listener" "main" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.n8n.arn
+    target_group_arn = aws_lb_target_group.wordpress.arn
   }
 }
 
 # Target Group Attachment
-resource "aws_lb_target_group_attachment" "n8n" {
+resource "aws_lb_target_group_attachment" "wordpress" {
   count            = length(var.instance_ids)
-  target_group_arn = aws_lb_target_group.n8n.arn
+  target_group_arn = aws_lb_target_group.wordpress.arn
   target_id        = var.instance_ids[count.index]
-  port             = 80
+  port             = 8000
 }
