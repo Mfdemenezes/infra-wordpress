@@ -1,0 +1,101 @@
+name: 🧪 WordPress Test Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_message:
+        description: 'Test message'
+        required: false
+        default: 'Hello from WordPress GitHub Actions!'
+        type: string
+      test_terraform:
+        description: 'Test Terraform validation'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  test:
+    name: 🧪 WordPress Test Job
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🎯 Echo Test Message
+        run: |
+          echo "🧪 Test message: ${{ github.event.inputs.test_message }}"
+          echo "✅ WordPress workflow is working correctly!"
+          echo "📂 Repository: ${{ github.repository }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+
+      - name: 📋 List WordPress Terraform Files
+        run: |
+          echo "📋 WordPress Terraform files in repository:"
+          find . -name "*.tf" -type f | head -20
+          echo ""
+          echo "📁 Directory structure:"
+          ls -la
+          echo ""
+          echo "🐳 Docker files:"
+          find . -name "docker-compose.yml" -o -name "compose.yaml" -o -name "Dockerfile" 2>/dev/null || echo "No Docker files found"
+
+      - name: 🔍 Check WordPress Configuration
+        run: |
+          echo "🔍 Checking WordPress-specific configurations:"
+          echo ""
+          echo "📦 User data script:"
+          if [ -f "modules/ec2/user_data.sh" ]; then
+            echo "✅ user_data.sh found"
+            grep -i "wordpress\|mysql" modules/ec2/user_data.sh | head -5 || echo "No WordPress/MySQL references found"
+          else
+            echo "❌ user_data.sh not found"
+          fi
+          echo ""
+          echo "🔧 Terraform variables:"
+          if [ -f "terraform.tfvars" ]; then
+            echo "✅ terraform.tfvars found"
+            head -10 terraform.tfvars
+          else
+            echo "❌ terraform.tfvars not found"
+          fi
+
+  terraform-test:
+    name: 🔧 WordPress Terraform Validation Test
+    runs-on: ubuntu-latest
+    if: github.event.inputs.test_terraform == 'true'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: 🚀 Terraform Init (Dry Run)
+        run: |
+          echo "🧪 Testing Terraform initialization..."
+          # Initialize without backend to test syntax
+          terraform init -backend=false
+
+      - name: 🔍 Terraform Format Check
+        run: |
+          echo "🧪 Testing Terraform formatting..."
+          terraform fmt -check -diff
+
+      - name: ✅ Terraform Validate
+        run: |
+          echo "🧪 Testing Terraform validation..."
+          terraform validate
+
+      - name: 📋 WordPress Test Summary
+        run: |
+          echo "📋 WordPress Terraform Test Summary:"
+          echo "✅ Terraform syntax is valid"
+          echo "✅ Terraform formatting is correct"
+          echo "✅ Configuration is ready for deployment"
+          echo ""
+          echo "🎯 Ready to deploy WordPress infrastructure!"

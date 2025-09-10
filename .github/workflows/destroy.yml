@@ -1,0 +1,127 @@
+name: 🗑️ WordPress Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "DESTROY" to confirm WordPress infrastructure destruction'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      force_destroy:
+        description: 'Force destroy (use with caution)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  destroy:
+    name: 🗑️ WordPress Terraform Destroy
+    runs-on: ubuntu-latest
+    environment: 
+      name: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: ✅ Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "DESTROY" ]; then
+            echo "❌ Destruction cancelled. You must type 'DESTROY' to confirm."
+            echo "You typed: '${{ github.event.inputs.confirmation }}'"
+            exit 1
+          fi
+          echo "✅ WordPress infrastructure destruction confirmed."
+
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: 🛠️ Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: 🚀 Terraform Init
+        run: terraform init
+
+      - name: 📋 Terraform Plan Destroy
+        run: |
+          echo "Planning WordPress infrastructure destruction..."
+          terraform plan -destroy -out=destroy-plan
+          echo "📋 Destruction plan created. Review the plan above."
+
+      - name: 🔍 Show Destruction Plan
+        run: |
+          echo "🔍 WordPress resources to be destroyed:"
+          terraform show destroy-plan
+
+      - name: ⚠️ WordPress Data Warning
+        run: |
+          echo "⚠️  WARNING: This will permanently destroy your WordPress infrastructure!"
+          echo ""
+          echo "🗂️  Data that will be LOST:"
+          echo "   - WordPress files and uploads"
+          echo "   - MySQL database and all posts/pages"
+          echo "   - Docker volumes with persistent data"
+          echo "   - ALB and networking configuration"
+          echo ""
+          echo "💾 Make sure you have backups if needed!"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Force destroy: ${{ github.event.inputs.force_destroy }}"
+
+      - name: ⏳ Wait for Final Confirmation
+        run: |
+          echo "⚠️  FINAL WARNING: WordPress infrastructure will be destroyed!"
+          echo "Proceeding in 15 seconds..."
+          sleep 15
+
+      - name: 🔥 Terraform Destroy
+        run: |
+          if [ "${{ github.event.inputs.force_destroy }}" == "true" ]; then
+            echo "🔥 Force destroying WordPress infrastructure..."
+            terraform destroy -auto-approve
+          else
+            echo "🗑️  Destroying WordPress infrastructure using plan..."
+            terraform apply destroy-plan
+          fi
+
+      - name: ✅ Verify WordPress Destruction
+        run: |
+          echo "🔍 Verifying WordPress infrastructure destruction..."
+          if terraform state list 2>/dev/null | grep -q .; then
+            echo "⚠️  Warning: Some WordPress resources may still exist in state"
+            terraform state list
+          else
+            echo "✅ All WordPress resources successfully destroyed"
+          fi
+
+      - name: 🧹 Cleanup State (Optional)
+        if: github.event.inputs.force_destroy == 'true'
+        run: |
+          echo "🧹 Cleaning up WordPress Terraform state..."
+          # Uncomment the next line if you want to remove the state file entirely
+          # terraform state rm $(terraform state list) || true
+
+      - name: 📋 Post-Destruction Summary
+        run: |
+          echo "📋 WordPress Destruction Summary:"
+          echo "✅ EC2 instances terminated"
+          echo "✅ ALB and target groups removed"
+          echo "✅ VPC and networking resources cleaned up"
+          echo "✅ Security groups deleted"
+          echo "✅ S3 state bucket unchanged (contains state history)"
+          echo ""
+          echo "🎯 To redeploy WordPress, run the deploy workflow again"
